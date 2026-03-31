@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.web/
+node_modules/
+web/node_modules/
+web/.next/
+.DS_Store
+
+# Generated local data & ML artifacts (recreate with scripts in README)
+data/*.db
+artifacts/*.sav
+artifacts/*.json
