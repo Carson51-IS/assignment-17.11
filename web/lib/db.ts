@@ -9,7 +9,7 @@ export function getDb(): Database.Database {
   const p = getShopDbPath();
   if (!fs.existsSync(p)) {
     throw new Error(
-      `Database not found at ${p}. Run: python jobs/seed_shop_db.py (from assignment root) or add your course shop.db under data/.`
+      `Database not found at ${p}. Place the course shop.db at the assignment project root (next to the web/ folder).`
     );
   }
   _db = new Database(p);

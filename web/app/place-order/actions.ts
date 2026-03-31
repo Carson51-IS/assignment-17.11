@@ -28,24 +28,19 @@ export async function placeOrderAction(
 
   const db = getDb();
   const productStmt = db.prepare(
-    "SELECT price, weight FROM products WHERE product_id = ?"
+    "SELECT price FROM products WHERE product_id = ? AND is_active = 1"
   );
 
-  let totalValue = 0;
-  let numItems = 0;
-  let weightSum = 0;
+  let subtotal = 0;
 
-  const resolved: { product_id: number; quantity: number; price: number; weight: number }[] =
-    [];
+  const resolved: { product_id: number; quantity: number; price: number }[] = [];
 
   for (const line of cleaned) {
-    const p = productStmt.get(line.product_id) as
-      | { price: number; weight: number }
-      | undefined;
+    const p = productStmt.get(line.product_id) as { price: number } | undefined;
     if (!p) {
       return {
         ok: false as const,
-        error: `Unknown product_id ${line.product_id}.`,
+        error: `Unknown or inactive product_id ${line.product_id}.`,
       };
     }
     const q = Math.floor(line.quantity);
@@ -56,38 +51,44 @@ export async function placeOrderAction(
       product_id: line.product_id,
       quantity: q,
       price: p.price,
-      weight: p.weight,
     });
-    totalValue += p.price * q;
-    numItems += q;
-    weightSum += p.weight * q;
+    subtotal += p.price * q;
   }
 
-  const avgWeight = numItems > 0 ? weightSum / numItems : 0;
-  const ts = new Date().toISOString();
+  subtotal = Math.round(subtotal * 100) / 100;
+  const shippingFee = 0;
+  const taxAmount = 0;
+  const orderTotal = Math.round((subtotal + shippingFee + taxAmount) * 100) / 100;
+  const ts = new Date().toISOString().replace("T", " ").slice(0, 19);
 
   let newOrderId = 0;
   const trx = db.transaction(() => {
     const insOrder = db.prepare(
-      `INSERT INTO orders (customer_id, order_timestamp, fulfilled, total_value, num_items, avg_weight, late_delivery, is_fraud)
-       VALUES (?, ?, 0, ?, ?, ?, NULL, 0)`
+      `INSERT INTO orders (
+        customer_id, order_datetime,
+        billing_zip, shipping_zip, shipping_state,
+        payment_method, device_type, ip_country,
+        promo_used, promo_code,
+        order_subtotal, shipping_fee, tax_amount, order_total,
+        risk_score, is_fraud
+      ) VALUES (?, ?, '', '', '', 'card', 'web', 'US', 0, NULL, ?, 0, 0, ?, 0, 0)`
     );
     const insLine = db.prepare(
-      `INSERT INTO order_items (order_id, product_id, quantity, unit_price)
-       VALUES (?, ?, ?, ?)`
+      `INSERT INTO order_items (order_id, product_id, quantity, unit_price, line_total)
+       VALUES (?, ?, ?, ?, ?)`
     );
 
     const info = insOrder.run(
       customerId,
       ts,
-      Math.round(totalValue * 100) / 100,
-      numItems,
-      Math.round(avgWeight * 10000) / 10000
+      subtotal,
+      orderTotal
     );
     newOrderId = Number(info.lastInsertRowid);
 
     for (const r of resolved) {
-      insLine.run(newOrderId, r.product_id, r.quantity, r.price);
+      const lineTotal = Math.round(r.quantity * r.price * 100) / 100;
+      insLine.run(newOrderId, r.product_id, r.quantity, r.price, lineTotal);
     }
   });
 

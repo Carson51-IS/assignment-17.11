@@ -34,12 +34,12 @@ def train_and_save() -> None:
     numeric_features = [
         "num_items",
         "total_value",
-        "avg_weight",
+        "avg_line_price",
         "customer_age",
         "order_dow",
         "order_month",
     ]
-    categorical_features: list[str] = []
+    categorical_features = ["gender"]
 
     numeric_pipe = Pipeline(
         steps=[
@@ -62,7 +62,7 @@ def train_and_save() -> None:
         remainder="drop",
     )
 
-    clf = LogisticRegression(max_iter=500)
+    clf = LogisticRegression(max_iter=2000)
 
     model = Pipeline(
         steps=[

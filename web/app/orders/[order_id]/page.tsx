@@ -17,8 +17,15 @@ export default async function OrderDetailPage({
 
   const order = getDb()
     .prepare(
-      `SELECT order_id, customer_id, order_timestamp, fulfilled, total_value
-       FROM orders WHERE order_id = ?`
+      `SELECT
+         o.order_id,
+         o.customer_id,
+         o.order_datetime AS order_timestamp,
+         (CASE WHEN EXISTS (SELECT 1 FROM shipments s WHERE s.order_id = o.order_id)
+          THEN 1 ELSE 0 END) AS fulfilled,
+         o.order_total AS total_value
+       FROM orders o
+       WHERE o.order_id = ?`
     )
     .get(orderId) as
     | {
@@ -36,8 +43,7 @@ export default async function OrderDetailPage({
 
   const lines = getDb()
     .prepare(
-      `SELECT p.product_name, oi.quantity, oi.unit_price,
-              (oi.quantity * oi.unit_price) AS line_total
+      `SELECT p.product_name, oi.quantity, oi.unit_price, oi.line_total
        FROM order_items oi
        JOIN products p ON p.product_id = oi.product_id
        WHERE oi.order_id = ?

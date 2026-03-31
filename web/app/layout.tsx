@@ -21,13 +21,11 @@ export default async function RootLayout({
       const db = getDb();
       const row = db
         .prepare(
-          "SELECT first_name, last_name, email FROM customers WHERE customer_id = ?"
+          "SELECT full_name, email FROM customers WHERE customer_id = ?"
         )
-        .get(Number(cid)) as
-        | { first_name: string; last_name: string; email: string }
-        | undefined;
+        .get(Number(cid)) as { full_name: string; email: string } | undefined;
       if (row) {
-        customerLabel = `${row.first_name} ${row.last_name} (${row.email})`;
+        customerLabel = `${row.full_name} (${row.email})`;
       }
     } catch {
       customerLabel = null;

@@ -1,21 +1,25 @@
 import { getDb } from "@/lib/db";
 
+/** Course schema: timestamps on `order_datetime`, totals on `order_total`, customer name in `full_name`.
+ *  “Unfulfilled” = no row in `shipments` yet (new orders from the app stay in this state until shipped).
+ */
 const PRIORITY_SQL = `
 SELECT
   o.order_id,
-  o.order_timestamp,
-  o.total_value,
-  o.fulfilled,
+  o.order_datetime AS order_timestamp,
+  o.order_total AS total_value,
+  (CASE WHEN EXISTS (SELECT 1 FROM shipments s WHERE s.order_id = o.order_id)
+   THEN 1 ELSE 0 END) AS fulfilled,
   c.customer_id,
-  c.first_name || ' ' || c.last_name AS customer_name,
+  c.full_name AS customer_name,
   p.late_delivery_probability,
   p.predicted_late_delivery,
   p.prediction_timestamp
 FROM orders o
 JOIN customers c ON c.customer_id = o.customer_id
 JOIN order_predictions p ON p.order_id = o.order_id
-WHERE o.fulfilled = 0
-ORDER BY p.late_delivery_probability DESC, o.order_timestamp ASC
+WHERE NOT EXISTS (SELECT 1 FROM shipments s WHERE s.order_id = o.order_id)
+ORDER BY p.late_delivery_probability DESC, o.order_datetime ASC
 LIMIT 50
 `;
 
@@ -47,18 +51,16 @@ export default function WarehousePriorityPage() {
     <>
       <h1>Late Delivery Priority Queue</h1>
       <p>
-        Unfulfilled orders ranked by model-estimated probability of late
-        delivery. Warehouse staff can pull from the top first to reduce delay
-        risk. Predictions come from the <code>order_predictions</code> table
-        populated by the Python inference job.
+        Unfulfilled orders (no shipment record yet) ranked by model-estimated
+        probability of late delivery. Run <strong>Run Scoring</strong> after
+        placing orders so they appear in <code>order_predictions</code>.
       </p>
       {err ? <div className="error">{err}</div> : null}
       {!err && rows.length === 0 ? (
         <div className="card">
           <p>
-            No rows to show. Ensure unfulfilled orders exist and run{" "}
-            <strong>Run Scoring</strong> so <code>order_predictions</code> is
-            populated.
+            No rows to show. Place a new order (it will not have a shipment
+            yet), run scoring, then refresh this page.
           </p>
         </div>
       ) : null}

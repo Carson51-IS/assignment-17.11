@@ -5,8 +5,7 @@ import { selectCustomerAction } from "./actions";
 
 export type CustomerRow = {
   customer_id: number;
-  first_name: string;
-  last_name: string;
+  full_name: string;
   email: string;
 };
 
@@ -18,8 +17,7 @@ export function CustomerPicker({ customers }: { customers: CustomerRow[] }) {
     if (!s) return customers;
     return customers.filter(
       (c) =>
-        c.first_name.toLowerCase().includes(s) ||
-        c.last_name.toLowerCase().includes(s) ||
+        c.full_name.toLowerCase().includes(s) ||
         c.email.toLowerCase().includes(s) ||
         String(c.customer_id).includes(s)
     );
@@ -51,9 +49,7 @@ export function CustomerPicker({ customers }: { customers: CustomerRow[] }) {
             {filtered.map((c) => (
               <tr key={c.customer_id}>
                 <td>{c.customer_id}</td>
-                <td>
-                  {c.first_name} {c.last_name}
-                </td>
+                <td>{c.full_name}</td>
                 <td>{c.email}</td>
                 <td>
                   <form action={selectCustomerAction}>

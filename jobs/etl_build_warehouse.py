@@ -12,36 +12,48 @@ def build_modeling_table() -> int:
         SELECT
           o.order_id,
           o.customer_id,
-          o.num_items,
-          o.total_value,
-          o.avg_weight,
-          o.order_timestamp,
-          o.late_delivery AS label_late_delivery,
+          (
+            SELECT COALESCE(SUM(oi.quantity), 0)
+            FROM order_items oi WHERE oi.order_id = o.order_id
+          ) AS num_items,
+          o.order_subtotal AS total_value,
+          (
+            SELECT CASE WHEN COALESCE(SUM(oi.quantity), 0) > 0
+              THEN SUM(oi.line_total) * 1.0 / SUM(oi.quantity)
+              ELSE 0.0 END
+            FROM order_items oi WHERE oi.order_id = o.order_id
+          ) AS avg_line_price,
+          o.order_datetime,
+          sh.late_delivery AS label_late_delivery,
           c.gender,
           c.birthdate
         FROM orders o
         JOIN customers c ON o.customer_id = c.customer_id
+        JOIN shipments sh ON sh.order_id = o.order_id
         """
         df = pd.read_sql(query, conn)
 
-    df["order_timestamp"] = pd.to_datetime(df["order_timestamp"], errors="coerce")
+    df["order_datetime"] = pd.to_datetime(df["order_datetime"], errors="coerce")
     df["birthdate"] = pd.to_datetime(df["birthdate"], errors="coerce")
 
     now_year = datetime.now().year
     df["customer_age"] = now_year - df["birthdate"].dt.year
 
-    df["order_dow"] = df["order_timestamp"].dt.dayofweek
-    df["order_month"] = df["order_timestamp"].dt.month
+    df["order_dow"] = df["order_datetime"].dt.dayofweek
+    df["order_month"] = df["order_datetime"].dt.month
+
+    df["gender"] = df["gender"].fillna("unknown").astype(str)
 
     modeling_cols = [
         "order_id",
         "customer_id",
         "num_items",
         "total_value",
-        "avg_weight",
+        "avg_line_price",
         "customer_age",
         "order_dow",
         "order_month",
+        "gender",
         "label_late_delivery",
     ]
 

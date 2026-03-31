@@ -13,7 +13,7 @@ export default async function SelectCustomerPage({
   try {
     customers = getDb()
       .prepare(
-        `SELECT customer_id, first_name, last_name, email FROM customers ORDER BY last_name, first_name`
+        `SELECT customer_id, full_name, email FROM customers ORDER BY full_name`
       )
       .all() as CustomerRow[];
   } catch (e) {

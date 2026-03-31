@@ -14,37 +14,50 @@ def run_inference() -> int:
         query = """
         SELECT
           o.order_id,
-          o.num_items,
-          o.total_value,
-          o.avg_weight,
-          o.order_timestamp,
-          c.birthdate
+          (
+            SELECT COALESCE(SUM(oi.quantity), 0)
+            FROM order_items oi WHERE oi.order_id = o.order_id
+          ) AS num_items,
+          o.order_subtotal AS total_value,
+          (
+            SELECT CASE WHEN COALESCE(SUM(oi.quantity), 0) > 0
+              THEN SUM(oi.line_total) * 1.0 / SUM(oi.quantity)
+              ELSE 0.0 END
+            FROM order_items oi WHERE oi.order_id = o.order_id
+          ) AS avg_line_price,
+          o.order_datetime,
+          c.birthdate,
+          c.gender
         FROM orders o
         JOIN customers c ON o.customer_id = c.customer_id
-        WHERE o.fulfilled = 0
+        WHERE NOT EXISTS (
+          SELECT 1 FROM shipments s WHERE s.order_id = o.order_id
+        )
         """
         df_live = pd.read_sql(query, conn)
 
     if df_live.empty:
         return 0
 
-    df_live["order_timestamp"] = pd.to_datetime(df_live["order_timestamp"], errors="coerce")
+    df_live["order_datetime"] = pd.to_datetime(df_live["order_datetime"], errors="coerce")
     df_live["birthdate"] = pd.to_datetime(df_live["birthdate"], errors="coerce")
 
     now_year = datetime.now().year
     df_live["customer_age"] = now_year - df_live["birthdate"].dt.year
 
-    df_live["order_dow"] = df_live["order_timestamp"].dt.dayofweek
-    df_live["order_month"] = df_live["order_timestamp"].dt.month
+    df_live["order_dow"] = df_live["order_datetime"].dt.dayofweek
+    df_live["order_month"] = df_live["order_datetime"].dt.month
+    df_live["gender"] = df_live["gender"].fillna("unknown").astype(str)
 
     X_live = df_live[
         [
             "num_items",
             "total_value",
-            "avg_weight",
+            "avg_line_price",
             "customer_age",
             "order_dow",
             "order_month",
+            "gender",
         ]
     ]
 

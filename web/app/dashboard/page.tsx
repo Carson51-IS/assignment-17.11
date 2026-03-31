@@ -9,11 +9,9 @@ export default async function DashboardPage() {
   const db = getDb();
   const customer = db
     .prepare(
-      "SELECT first_name, last_name, email FROM customers WHERE customer_id = ?"
+      "SELECT full_name, email FROM customers WHERE customer_id = ?"
     )
-    .get(customerId) as
-    | { first_name: string; last_name: string; email: string }
-    | undefined;
+    .get(customerId) as { full_name: string; email: string } | undefined;
 
   if (!customer) {
     redirect("/select-customer?error=missing");
@@ -21,15 +19,21 @@ export default async function DashboardPage() {
 
   const totals = db
     .prepare(
-      `SELECT COUNT(*) AS n, COALESCE(SUM(total_value), 0) AS spend FROM orders WHERE customer_id = ?`
+      `SELECT COUNT(*) AS n, COALESCE(SUM(order_total), 0) AS spend FROM orders WHERE customer_id = ?`
     )
     .get(customerId) as { n: number; spend: number };
 
   const recent = db
     .prepare(
-      `SELECT order_id, order_timestamp, fulfilled, total_value
-       FROM orders WHERE customer_id = ?
-       ORDER BY datetime(order_timestamp) DESC
+      `SELECT
+         o.order_id,
+         o.order_datetime AS order_timestamp,
+         (CASE WHEN EXISTS (SELECT 1 FROM shipments s WHERE s.order_id = o.order_id)
+          THEN 1 ELSE 0 END) AS fulfilled,
+         o.order_total AS total_value
+       FROM orders o
+       WHERE o.customer_id = ?
+       ORDER BY datetime(o.order_datetime) DESC
        LIMIT 5`
     )
     .all(customerId) as {
@@ -44,9 +48,7 @@ export default async function DashboardPage() {
       <h1>Customer dashboard</h1>
       <div className="card">
         <p>
-          <strong>
-            {customer.first_name} {customer.last_name}
-          </strong>
+          <strong>{customer.full_name}</strong>
         </p>
         <p>{customer.email}</p>
         <p>Total orders: {totals.n}</p>
