@@ -78,11 +78,28 @@ export async function runScoringAction(): Promise<ScoringResult> {
     if (gh.ok) {
       return { ok: true, output: gh.output, finishedAt };
     }
+    const token = Boolean(process.env.GITHUB_TRIGGER_TOKEN?.trim());
+    const repo = process.env.GITHUB_REPO?.trim();
+    const hint =
+      !token && !repo
+        ? [
+            "Vercel cannot run Python/scoring — this button queues GitHub Actions.",
+            "",
+            "Add these in Vercel → Settings → Environment Variables (Production), then Redeploy:",
+            "  • GITHUB_REPO = your-github-username/your-repo-name",
+            "  • GITHUB_TRIGGER_TOKEN = a GitHub PAT with “workflow” scope (classic) or Actions: Read and write (fine‑grained)",
+            "",
+            "GitHub repo must contain .github/workflows/fraud-scoring.yml and Repository secrets:",
+            "  • SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY",
+            "  • plus artifacts/fraud_artifacts.joblib committed (or adjust the workflow).",
+            "",
+            "Or: run locally: python jobs/run_fraud_inference.py (writes to Supabase; deployed app shows the queue).",
+          ].join("\n")
+        : gh.output ||
+          "GitHub dispatch failed. Check PAT scopes, GITHUB_REPO (owner/name), and that fraud-scoring.yml exists on the default branch.";
     return {
       ok: false,
-      output:
-        gh.output ||
-        "On Vercel, configure GITHUB_TRIGGER_TOKEN and GITHUB_REPO (owner/name) so Run Scoring can queue the GitHub Actions workflow, or run scoring locally with Python.",
+      output: hint,
       finishedAt,
     };
   }
