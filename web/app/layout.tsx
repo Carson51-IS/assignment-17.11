@@ -1,7 +1,7 @@
 import "./globals.css";
 import { cookies } from "next/headers";
 import Link from "next/link";
-import { getDb } from "@/lib/db";
+import { fetchCustomerProfile } from "@/lib/shop-data";
 
 export const metadata = {
   title: "Shop Ops",
@@ -18,12 +18,7 @@ export default async function RootLayout({
   let customerLabel: string | null = null;
   if (cid) {
     try {
-      const db = getDb();
-      const row = db
-        .prepare(
-          "SELECT full_name, email FROM customers WHERE customer_id = ?"
-        )
-        .get(Number(cid)) as { full_name: string; email: string } | undefined;
+      const row = await fetchCustomerProfile(Number(cid));
       if (row) {
         customerLabel = `${row.full_name} (${row.email})`;
       }
@@ -38,12 +33,11 @@ export default async function RootLayout({
         <header className="site-header">
           <nav>
             <Link href="/select-customer">Select Customer</Link>
-            <Link href="/dashboard">Customer Dashboard</Link>
+            <Link href="/dashboard">Dashboard</Link>
             <Link href="/place-order">Place Order</Link>
             <Link href="/orders">Order History</Link>
-            <Link href="/warehouse/priority">Warehouse Priority Queue</Link>
+            <Link href="/warehouse/priority">Priority Queue</Link>
             <Link href="/scoring">Run Scoring</Link>
-            <Link href="/debug/schema">Debug schema</Link>
           </nav>
         </header>
         {customerLabel ? (
@@ -51,7 +45,9 @@ export default async function RootLayout({
             Acting as customer #{cid}: {customerLabel}
           </div>
         ) : (
-          <div className="banner">No customer selected — start at Select Customer.</div>
+          <div className="banner">
+            No customer selected — start at Select Customer.
+          </div>
         )}
         <main className="page">{children}</main>
       </body>

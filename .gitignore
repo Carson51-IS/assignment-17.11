@@ -5,6 +5,7 @@ node_modules/
 web/node_modules/
 web/.next/
 .DS_Store
+.env
 
 # Generated local data & ML artifacts (recreate with scripts in README)
 data/*.db

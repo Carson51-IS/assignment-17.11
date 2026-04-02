@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db";
+import { fetchOrderHistory } from "@/lib/shop-data";
 import { getSelectedCustomerId } from "@/lib/session";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -13,24 +13,7 @@ export default async function OrdersPage({
 
   const sp = await searchParams;
 
-  const rows = getDb()
-    .prepare(
-      `SELECT
-         o.order_id,
-         o.order_datetime AS order_timestamp,
-         (CASE WHEN EXISTS (SELECT 1 FROM shipments s WHERE s.order_id = o.order_id)
-          THEN 1 ELSE 0 END) AS fulfilled,
-         o.order_total AS total_value
-       FROM orders o
-       WHERE o.customer_id = ?
-       ORDER BY datetime(o.order_datetime) DESC`
-    )
-    .all(customerId) as {
-    order_id: number;
-    order_timestamp: string;
-    fulfilled: number;
-    total_value: number;
-  }[];
+  const rows = await fetchOrderHistory(customerId);
 
   return (
     <>

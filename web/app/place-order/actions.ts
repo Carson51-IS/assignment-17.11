@@ -1,6 +1,6 @@
 "use server";
 
-import { getDb } from "@/lib/db";
+import { createSupabaseAdmin } from "@/lib/supabase-admin";
 import { getSelectedCustomerId } from "@/lib/session";
 
 export type LineInput = { product_id: number; quantity: number };
@@ -8,96 +8,72 @@ export type LineInput = { product_id: number; quantity: number };
 export async function placeOrderAction(
   lines: LineInput[]
 ): Promise<
-  { ok: true; orderId: number } | { ok: false; error: string; code?: "NO_CUSTOMER" }
+  | { ok: true; orderId: number }
+  | { ok: false; error: string; code?: "NO_CUSTOMER" }
 > {
   const customerId = await getSelectedCustomerId();
   if (customerId == null) {
-    return {
-      ok: false,
-      error: "No customer selected.",
-      code: "NO_CUSTOMER",
-    };
+    return { ok: false, error: "No customer selected.", code: "NO_CUSTOMER" };
   }
 
   const cleaned = lines.filter(
     (l) => Number.isFinite(l.product_id) && l.quantity > 0
   );
   if (cleaned.length === 0) {
-    return { ok: false as const, error: "Add at least one line with quantity ≥ 1." };
+    return { ok: false, error: "Add at least one line with quantity ≥ 1." };
   }
 
-  const db = getDb();
-  const productStmt = db.prepare(
-    "SELECT price FROM products WHERE product_id = ? AND is_active = 1"
-  );
-
+  const sb = createSupabaseAdmin();
   let subtotal = 0;
-
-  const resolved: { product_id: number; quantity: number; price: number }[] = [];
+  const resolved: { product_id: number; quantity: number; price: number }[] =
+    [];
 
   for (const line of cleaned) {
-    const p = productStmt.get(line.product_id) as { price: number } | undefined;
-    if (!p) {
-      return {
-        ok: false as const,
-        error: `Unknown or inactive product_id ${line.product_id}.`,
-      };
+    const { data, error } = await sb
+      .from("products")
+      .select("price")
+      .eq("product_id", line.product_id)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (error) return { ok: false, error: error.message };
+    if (!data) {
+      return { ok: false, error: `Unknown or inactive product_id ${line.product_id}.` };
     }
+    const price = Number(data.price);
     const q = Math.floor(line.quantity);
     if (q < 1) {
-      return { ok: false as const, error: "Quantities must be whole numbers ≥ 1." };
+      return { ok: false, error: "Quantities must be whole numbers ≥ 1." };
     }
-    resolved.push({
-      product_id: line.product_id,
-      quantity: q,
-      price: p.price,
-    });
-    subtotal += p.price * q;
+    resolved.push({ product_id: line.product_id, quantity: q, price });
+    subtotal += price * q;
   }
 
   subtotal = Math.round(subtotal * 100) / 100;
-  const shippingFee = 0;
-  const taxAmount = 0;
-  const orderTotal = Math.round((subtotal + shippingFee + taxAmount) * 100) / 100;
+  const orderTotal = subtotal;
   const ts = new Date().toISOString().replace("T", " ").slice(0, 19);
 
-  let newOrderId = 0;
-  const trx = db.transaction(() => {
-    const insOrder = db.prepare(
-      `INSERT INTO orders (
-        customer_id, order_datetime,
-        billing_zip, shipping_zip, shipping_state,
-        payment_method, device_type, ip_country,
-        promo_used, promo_code,
-        order_subtotal, shipping_fee, tax_amount, order_total,
-        risk_score, is_fraud
-      ) VALUES (?, ?, '', '', '', 'card', 'web', 'US', 0, NULL, ?, 0, 0, ?, 0, 0)`
-    );
-    const insLine = db.prepare(
-      `INSERT INTO order_items (order_id, product_id, quantity, unit_price, line_total)
-       VALUES (?, ?, ?, ?, ?)`
-    );
-
-    const info = insOrder.run(
-      customerId,
-      ts,
-      subtotal,
-      orderTotal
-    );
-    newOrderId = Number(info.lastInsertRowid);
-
-    for (const r of resolved) {
-      const lineTotal = Math.round(r.quantity * r.price * 100) / 100;
-      insLine.run(newOrderId, r.product_id, r.quantity, r.price, lineTotal);
-    }
-  });
-
   try {
-    trx();
+    const p_lines = resolved.map((r) => ({
+      product_id: r.product_id,
+      quantity: r.quantity,
+      unit_price: r.price,
+      line_total: Math.round(r.quantity * r.price * 100) / 100,
+    }));
+    const { data, error } = await sb.rpc("place_shop_order", {
+      p_customer_id: customerId,
+      p_order_datetime: ts,
+      p_order_subtotal: subtotal,
+      p_order_total: orderTotal,
+      p_lines: p_lines,
+    });
+    if (error) return { ok: false, error: error.message };
+    const orderId = Number(data);
+    if (!Number.isFinite(orderId)) {
+      return { ok: false, error: "Unexpected response from database." };
+    }
+    return { ok: true, orderId };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Database error";
-    return { ok: false as const, error: msg };
+    return { ok: false, error: msg };
   }
-
-  return { ok: true, orderId: newOrderId };
 }

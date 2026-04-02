@@ -12,3 +12,6 @@ WH_DB_PATH = DATA_DIR / "warehouse.db"
 MODEL_PATH = ARTIFACTS_DIR / "late_delivery_model.sav"
 MODEL_METADATA_PATH = ARTIFACTS_DIR / "model_metadata.json"
 METRICS_PATH = ARTIFACTS_DIR / "metrics.json"
+
+# Fraud notebook export (see DEPLOYMENT.md)
+FRAUD_ARTIFACTS_PATH = ARTIFACTS_DIR / "fraud_artifacts.joblib"

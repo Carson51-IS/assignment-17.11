@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db";
+import { fetchCustomers } from "@/lib/shop-data";
 import { CustomerPicker, type CustomerRow } from "./CustomerPicker";
 
 export default async function SelectCustomerPage({
@@ -11,11 +11,7 @@ export default async function SelectCustomerPage({
   let customers: CustomerRow[] = [];
   let loadError: string | null = null;
   try {
-    customers = getDb()
-      .prepare(
-        `SELECT customer_id, full_name, email FROM customers ORDER BY full_name`
-      )
-      .all() as CustomerRow[];
+    customers = await fetchCustomers();
   } catch (e) {
     loadError = e instanceof Error ? e.message : "Failed to load database.";
   }

@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db";
+import { fetchOrderHeader, fetchOrderLines } from "@/lib/shop-data";
 import { getSelectedCustomerId } from "@/lib/session";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -15,46 +15,13 @@ export default async function OrderDetailPage({
   const orderId = Number(raw);
   if (!Number.isFinite(orderId)) notFound();
 
-  const order = getDb()
-    .prepare(
-      `SELECT
-         o.order_id,
-         o.customer_id,
-         o.order_datetime AS order_timestamp,
-         (CASE WHEN EXISTS (SELECT 1 FROM shipments s WHERE s.order_id = o.order_id)
-          THEN 1 ELSE 0 END) AS fulfilled,
-         o.order_total AS total_value
-       FROM orders o
-       WHERE o.order_id = ?`
-    )
-    .get(orderId) as
-    | {
-        order_id: number;
-        customer_id: number;
-        order_timestamp: string;
-        fulfilled: number;
-        total_value: number;
-      }
-    | undefined;
+  const order = await fetchOrderHeader(orderId);
 
   if (!order || order.customer_id !== customerId) {
     notFound();
   }
 
-  const lines = getDb()
-    .prepare(
-      `SELECT p.product_name, oi.quantity, oi.unit_price, oi.line_total
-       FROM order_items oi
-       JOIN products p ON p.product_id = oi.product_id
-       WHERE oi.order_id = ?
-       ORDER BY oi.order_item_id`
-    )
-    .all(orderId) as {
-    product_name: string;
-    quantity: number;
-    unit_price: number;
-    line_total: number;
-  }[];
+  const lines = await fetchOrderLines(orderId);
 
   return (
     <>

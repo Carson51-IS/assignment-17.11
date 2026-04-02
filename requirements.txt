@@ -1,3 +1,6 @@
+python-dotenv>=1.0.0
 pandas>=2.0.0
 scikit-learn>=1.3.0
 joblib>=1.3.0
+# Pin below 2.7: newer releases pull pyiceberg (often breaks on Python 3.14 / Windows).
+supabase>=2.0.0,<2.7.0

@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db";
+import { fetchProducts } from "@/lib/shop-data";
 import { getSelectedCustomerId } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { PlaceOrderForm, type ProductRow } from "./PlaceOrderForm";
@@ -7,11 +7,7 @@ export default async function PlaceOrderPage() {
   const customerId = await getSelectedCustomerId();
   if (customerId == null) redirect("/select-customer");
 
-  const products = getDb()
-    .prepare(
-      `SELECT product_id, product_name, price FROM products ORDER BY product_name`
-    )
-    .all() as ProductRow[];
+  const products = await fetchProducts();
 
   return (
     <>
@@ -21,7 +17,7 @@ export default async function PlaceOrderPage() {
         single database transaction.
       </p>
       <div className="card">
-        <PlaceOrderForm products={products} />
+        <PlaceOrderForm products={products as ProductRow[]} />
       </div>
     </>
   );

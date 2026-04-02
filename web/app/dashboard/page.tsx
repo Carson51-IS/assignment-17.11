@@ -1,4 +1,8 @@
-import { getDb } from "@/lib/db";
+import {
+  fetchCustomerProfile,
+  fetchDashboardTotals,
+  fetchRecentOrders,
+} from "@/lib/shop-data";
 import { getSelectedCustomerId } from "@/lib/session";
 import { redirect } from "next/navigation";
 
@@ -6,42 +10,14 @@ export default async function DashboardPage() {
   const customerId = await getSelectedCustomerId();
   if (customerId == null) redirect("/select-customer");
 
-  const db = getDb();
-  const customer = db
-    .prepare(
-      "SELECT full_name, email FROM customers WHERE customer_id = ?"
-    )
-    .get(customerId) as { full_name: string; email: string } | undefined;
+  const customer = await fetchCustomerProfile(customerId);
 
   if (!customer) {
     redirect("/select-customer?error=missing");
   }
 
-  const totals = db
-    .prepare(
-      `SELECT COUNT(*) AS n, COALESCE(SUM(order_total), 0) AS spend FROM orders WHERE customer_id = ?`
-    )
-    .get(customerId) as { n: number; spend: number };
-
-  const recent = db
-    .prepare(
-      `SELECT
-         o.order_id,
-         o.order_datetime AS order_timestamp,
-         (CASE WHEN EXISTS (SELECT 1 FROM shipments s WHERE s.order_id = o.order_id)
-          THEN 1 ELSE 0 END) AS fulfilled,
-         o.order_total AS total_value
-       FROM orders o
-       WHERE o.customer_id = ?
-       ORDER BY datetime(o.order_datetime) DESC
-       LIMIT 5`
-    )
-    .all(customerId) as {
-    order_id: number;
-    order_timestamp: string;
-    fulfilled: number;
-    total_value: number;
-  }[];
+  const totals = await fetchDashboardTotals(customerId);
+  const recent = await fetchRecentOrders(customerId, 5);
 
   return (
     <>

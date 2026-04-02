@@ -5,10 +5,9 @@ export default function ScoringPage() {
     <>
       <h1>Run Scoring</h1>
       <p>
-        Runs <code>python jobs/run_inference.py</code> from the assignment root
-        (loads <code>late_delivery_model.sav</code> and updates{" "}
-        <code>order_predictions</code>). Use the PYTHON_EXE environment variable
-        if your interpreter is not named <code>python</code>.
+        Triggers the ML inference job that scores unfulfilled orders and writes
+        results to <code>order_predictions</code>. Locally this runs Python;
+        on Vercel it queues a GitHub Actions workflow.
       </p>
       <div className="card">
         <ScoringClient />
